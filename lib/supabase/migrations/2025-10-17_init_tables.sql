@@ -36,7 +36,7 @@ create table if not exists chargements (
   id uuid primary key default gen_random_uuid(),
   client_id uuid references clients(id) on delete cascade,
   transport_id uuid references transports(id) on delete cascade,
-  date_chargement date not null default now(),
+  date_chargement date not null default current_date,
   created_at timestamp with time zone default now()
 );
 
@@ -47,6 +47,15 @@ create table if not exists chargement_produits (
   produit_id uuid references produits(id) on delete cascade,
   quantite integer not null check (quantite > 0)
 );
+
+-- ==========================================================
+-- Contraintes & index
+-- ==========================================================
+alter table chargement_produits
+  add constraint chargement_produits_unique unique (chargement_id, produit_id);
+
+create index if not exists idx_chargement_produits_chargement
+  on chargement_produits (chargement_id);
 
 -- ==========================================================
 -- Sécurité : activation du RLS (Row Level Security)
@@ -74,3 +83,10 @@ create policy "Insertion publique" on chargements for insert with check (true);
 
 create policy "Lecture publique" on chargement_produits for select using (true);
 create policy "Insertion publique" on chargement_produits for insert with check (true);
+
+-- Autorise la mise à jour des lignes existantes dans la table chargement_produits
+create policy "Mise à jour publique"
+  on chargement_produits
+  for update
+  using (true)
+  with check (true);
