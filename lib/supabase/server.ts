@@ -1,4 +1,5 @@
-// Client Supabase pour le code exécuté côté serveur
+// Sert à créer une connexion Supabase côté serveur. 
+// Il permet un accès à la BDD Supabase en utilisant les cookies de l'user connecté.
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
@@ -10,17 +11,17 @@ export async function createServerSupabase() {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {
       cookies: {
+        // Permet de fournir à Supabase la liste complète des cookies actuels
         getAll() {
-          return cookieStore.getAll();
+          return cookieStore
+            .getAll()
+            .map((c) => ({ name: c.name, value: c.value }));
         },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              cookieStore.set(name, value, options);
-            });
-          } catch {
-            // cookies en lecture seule dans les composants serveur
-          }
+        // Je laisse Supabase écrire(ou MAJ) tous les cookies nécessaires
+        setAll(cookies) {
+          cookies.forEach(({ name, value, options }) => {
+            cookieStore.set({ name, value, ...options });
+          });
         },
       },
     }

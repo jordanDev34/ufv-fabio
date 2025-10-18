@@ -90,3 +90,22 @@ create policy "Mise à jour publique"
   for update
   using (true)
   with check (true);
+
+-- UPDATE sur CHARGEMENTS 
+create policy if not exists "Mise à jour publique"
+  on chargements
+  for update
+  using (true)
+  with check (true);
+
+-- DELETE sur CHARGEMENT_PRODUITS (pour pouvoir supprimer des lignes)
+create policy if not exists "Suppression publique"
+  on chargement_produits
+  for delete
+  using (true);
+
+-- DELETE sur CHARGEMENTS (pour supprimer un chargement entier)
+create policy if not exists "Suppression publique"
+  on chargements
+  for delete
+  using (true);

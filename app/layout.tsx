@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Image from "next/image";
 import Link from "next/link";
+import { LogoutButton } from "@/components/LogoutButton";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({
@@ -46,16 +47,16 @@ export default function RootLayout({
               </div>
               {/* Je centre mon titre - Titre mobile plus court */}
               <Link href="/chargements" className="text-center min-w-0">
-                  <h1 className="sm:hidden text-sm font-semibold leading-tight">
-                    UFV - Chargements
-                  </h1>
-                  <h1 className="hidden sm:block text-base sm:text-lg font-semibold tracking-tight leading-tight">
-                    UFV - Gestion des chargements
-                  </h1>
+                <h1 className="sm:hidden text-sm font-semibold leading-tight">
+                  UFV - Chargements
+                </h1>
+                <h1 className="hidden sm:block text-base sm:text-lg font-semibold tracking-tight leading-tight">
+                  UFV - Gestion des chargements
+                </h1>
               </Link>
               {/* droite : espace miroir afin de centrer logo/titre */}
               <div className="flex items-center justify-end">
-                <span className="inline-block h-9 w-9" aria-hidden />
+                <LogoutButton />
               </div>
             </div>
           </div>

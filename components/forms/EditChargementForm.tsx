@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useForm, useFieldArray, SubmitHandler } from "react-hook-form";
+import { useForm, useFieldArray, type SubmitHandler } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
@@ -24,9 +24,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import type { PostgrestError } from "@supabase/supabase-js";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 type Opt = { id: string; nom: string };
 type Prod = { id: string; nom: string; poids?: number | null };
+
+// Type guard : Permet d'identifier une erreur Supabase
+function asPgError(e: unknown): PostgrestError | null {
+  return e && typeof e === "object" && "code" in e && "message" in e
+    ? (e as PostgrestError)
+    : null;
+}
 
 // Schéma de validation avec zod
 const LigneSchema = z.object({
@@ -34,11 +53,34 @@ const LigneSchema = z.object({
   quantite: z.number().int().positive("Quantité > 0"),
 });
 const FormSchema = z.object({
-  client_id: z.string().min(1, "Sélectionner un client"),
-  transport_id: z.string().min(1, "Sélectionner un transporteur"),
-  date_chargement: z.string().min(1),
-  lignes: z.array(LigneSchema).min(1, "Ajouter au moins un produit"),
-});
+    client_id: z.string().min(1, "Sélectionner un client"),
+    transport_id: z.string().min(1, "Sélectionner un transporteur"),
+    date_chargement: z.string().min(1, "Sélectionner une date"),
+    lignes: z.array(LigneSchema).min(1, "Ajouter au moins un produit"),
+  })
+  .superRefine((data, ctx) => {
+    const firstIndexByProd = new Map<string, number>();
+    data.lignes.forEach((l, i) => {
+      const pid = l.produit_id;
+      if (!pid) return;
+      if (firstIndexByProd.has(pid)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["lignes", i, "produit_id"],
+          message: "Produit déjà sélectionné dans une autre ligne",
+        });
+        const firstIdx = firstIndexByProd.get(pid)!;
+        ctx.addIssue({
+          code: "custom",
+          path: ["lignes", firstIdx, "produit_id"],
+          message: "Produit déjà sélectionné dans une autre ligne",
+        });
+      } else {
+        firstIndexByProd.set(pid, i);
+      }
+    });
+  });
+
 type FormValues = z.infer<typeof FormSchema>;
 
 // Formulaire d'édition (pré-rempli)
@@ -57,12 +99,14 @@ export default function EditChargementForm({
 }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   // Formulaire pré-rempli + validation zod
   const form = useForm<FormValues>({
     resolver: zodResolver(FormSchema),
     defaultValues: initialValues,
+    mode: "onSubmit",
   });
 
   const { fields, append, remove } = useFieldArray<FormValues, "lignes">({
@@ -72,7 +116,7 @@ export default function EditChargementForm({
 
   // Soumission : UPDATE
   const onSubmit: SubmitHandler<FormValues> = async (values) => {
-    if (saving) return;
+    if (saving || deleting) return;
     try {
       setSaving(true);
       setMessage(null);
@@ -88,14 +132,14 @@ export default function EditChargementForm({
         .eq("id", chargementId);
       if (e1) throw e1;
 
-      // 2) Je remplace les lignes
+      // Je prépare les lignes
       const payload = values.lignes.map((l) => ({
         chargement_id: chargementId,
         produit_id: l.produit_id,
         quantite: l.quantite,
       }));
 
-      // Je supprime toutes les lignes existantes pour ce chargement
+      // Je remplace toutes les lignes (delete all => upsert)
       const { error: delErr } = await supabase
         .from("chargement_produits")
         .delete()
@@ -111,17 +155,55 @@ export default function EditChargementForm({
       if (upsertErr) throw upsertErr;
 
       setMessage("Chargement mis à jour");
+      router.refresh();
       router.push("/chargements");
     } catch (err: unknown) {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : typeof err === "string"
-          ? err
-          : JSON.stringify(err);
-      setMessage(`${msg}`);
+      const pg = asPgError(err);
+      const rawMsg =
+        pg?.message ?? (err instanceof Error ? err.message : String(err));
+
+      if (
+        pg?.code === "21000" ||
+        pg?.code === "23505" ||
+        /cannot affect row a second time/i.test(rawMsg) ||
+        /duplicate key value/i.test(rawMsg)
+      ) {
+        setMessage(
+          "Ce produit est déjà présent dans ce chargement. Modifie la quantité plutôt que d'ajouter une ligne identique."
+        );
+      } else {
+        setMessage("Une erreur est survenue. Merci de réessayer.");
+      }
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Permet la suppression du chargement quand je suis en mode 'edit' d'un chargement
+  const onDelete = async () => {
+    if (saving || deleting) return;
+
+    try {
+      setDeleting(true);
+      setMessage(null);
+
+      // Je supprime le chargement (les lignes partent en cascade)
+      const { error: delErr } = await supabase
+        .from("chargements")
+        .delete()
+        .eq("id", chargementId);
+      if (delErr) throw delErr;
+
+      setMessage("Chargement supprimé");
+      router.refresh();
+      router.push("/chargements");
+    } catch (err: unknown) {
+      const pg = asPgError(err);
+      const rawMsg =
+        pg?.message ?? (err instanceof Error ? err.message : String(err));
+      setMessage(`${rawMsg}`);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -281,11 +363,41 @@ export default function EditChargementForm({
           ))}
         </div>
 
-        <div className="flex items-center gap-3">
-          <Button type="submit" disabled={saving}>
-            {saving ? "Mise à jour…" : "Mettre à jour"}
-          </Button>
-          {message && <span className="text-sm">{message}</span>}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <Button type="submit" disabled={saving || deleting}>
+              {saving ? "Mise à jour…" : "Mettre à jour"}
+            </Button>
+            {message && <span className="text-sm">{message}</span>}
+          </div>
+
+          {/* Bouton Supprimer (avec fenêtre de confirmation) */}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={saving || deleting}
+              >
+                {deleting ? "Suppression…" : "Supprimer le chargement"}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Supprimer ce chargement ?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Cette action est irréversible. Les produits associés seront
+                  également supprimés (suppression en cascade).
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Annuler</AlertDialogCancel>
+                <AlertDialogAction onClick={onDelete}>
+                  Confirmer la suppression
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </form>
     </Form>
