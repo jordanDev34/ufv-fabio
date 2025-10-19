@@ -4,6 +4,13 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Pencil } from "lucide-react";
 
+const fmtFR = new Intl.DateTimeFormat("fr-FR", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  timeZone: "Europe/Paris",
+});
+
 export default async function ChargementsPage() {
   // Connexion à Supabase via le client serveur (fichier lib/supabase/server.ts)
   const supabase = await createServerSupabase();
@@ -44,8 +51,8 @@ export default async function ChargementsPage() {
         <ul className="space-y-3">
           {chargements.map((c) => {
             // Formatage des dates
-            const date = new Date(c.date_chargement).toLocaleDateString();
-            const created = new Date(c.created_at).toLocaleDateString();
+            const date = fmtFR.format(new Date(`${c.date_chargement}T00:00:00Z`));
+            const created = fmtFR.format(new Date(c.created_at));
 
             // Je renvoie les relations Supabase sous forme de tableau
             const clientObj = Array.isArray(c.clients)
@@ -67,7 +74,7 @@ export default async function ChargementsPage() {
                 className="p-4 border rounded-lg bg-white flex items-center justify-between gap-4"
               >
                 {/* Bloc gauche : date + infos client/transporteur */}
-                <div className="flex items-center gap-3 min-w-0">                  
+                <div className="flex items-center gap-3 min-w-0">
                   <div className="flex flex-col min-w-0">
                     <span className="font-medium">{date}</span>
                     <span className="text-sm text-gray-600 truncate">
