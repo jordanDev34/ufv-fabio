@@ -7,6 +7,18 @@ import { createServerClient } from "@supabase/ssr";
 // Route non mise en cache
 export const dynamic = "force-dynamic";
 
+// Types d’OTP email acceptés par Supabase pour la vérification via token_hash
+type EmailOtpType = "magiclink" | "recovery" | "invite" | "email_change";
+
+function isEmailOtpType(t: string | null): t is EmailOtpType {
+  return (
+    t === "magiclink" ||
+    t === "recovery" ||
+    t === "invite" ||
+    t === "email_change"
+  );
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
 
@@ -16,6 +28,8 @@ export async function GET(request: Request) {
 
   // Code renvoyé par Supabase dans le lien magique
   const code = url.searchParams.get("code");
+  const token_hash = url.searchParams.get("token_hash");
+  const type = url.searchParams.get("type");
 
   // Store cookies côté serveur
   const cookieStore = await cookies();
@@ -28,24 +42,30 @@ export async function GET(request: Request) {
       cookies: {
         // Lit tous les cookies présents
         getAll() {
-          return cookieStore
-            .getAll()
-            .map((c) => ({ name: c.name, value: c.value }));
+          return cookieStore.getAll();
         },
         // Écrit/MAJ les cookies que Supabase veut poser
-        setAll(cookies) {
-          cookies.forEach(({ name, value, options }) => {
-            cookieStore.set({ name, value, ...options });
-          });
+        setAll(cookiesToSet) {
+          for (const { name, value, options } of cookiesToSet) {
+            cookieStore.set(name, value, options);
+          }
         },
       },
     }
   );
 
-  if (code) {
-    await supabase.auth.exchangeCodeForSession(code);
+  try {
+    if (code) {
+      await supabase.auth.exchangeCodeForSession(code);
+    } else if (token_hash && isEmailOtpType(type)) {
+      await supabase.auth.verifyOtp({ type, token_hash });
+    }
+  } catch {
+    // En cas d’erreur d’échange, je renvoie vers /login
+    const fail = new URL("/login", url.origin);
+    fail.searchParams.set("next", safeNext);
+    return NextResponse.redirect(fail);
   }
 
-  // Je redirige vers la destination (par défaut : /chargements)
   return NextResponse.redirect(new URL(safeNext, url.origin));
 }

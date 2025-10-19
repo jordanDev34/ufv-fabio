@@ -53,7 +53,8 @@ Puis ouvre [http://localhost:3000](http://localhost:3000)
 
 ### 1 Création du schéma de base
 
-Le script SQL complet est disponible dans :
+Si tu lance le projet en 'local', il te faudra executer 2 scripts via Supabase.
+Le 1er script SQL complet est disponible dans :
 ```
 lib/supabase/migrations/2025-10-17_init_tables.sql
 ```
@@ -65,14 +66,22 @@ Ce script crée :
 - L’activation du RLS (Row Level Security)
 - Des policies de développement (lecture, écriture et suppression publiques)
 
+Le 2ème script SQL complet est disponible dans :
+```
+lib/supabase/migrations/2025-10-17_seed.sql
+```
+
+Ce script crée :
+- Des données fictives dans les tables : `clients`, `transports`, `produits`
+
+Cela permettra d'avoir des données quand tu lanceras le projet en local.
+
+Si tu vas sur mon projet déployé via Vercel, pas besoin d'effectuer ces manipulations car les tables sont déjà alimentées.
+
 **Étapes à suivre :**
-1. Copie le contenu du script SQL.  
+1. Copie le contenu du script SQL n° 1 puis le script n° 2.  
 2. Ouvre ton projet Supabase => **SQL Editor**.  
-3. Colle le script et clique sur **Run** pour l’exécuter.  
-4. Ensuite, va dans **Table Editor** et ajoute quelques données dans les tables :  
-   - `clients`  
-   - `produits`  
-   - `transports`  
+3. Colle le script 1 et clique sur **Run** pour l’exécuter puis re fais la manipulation avec le script 2.  
 
 Cela te permettra ensuite de créer des chargements depuis l’interface de l’application.
 
@@ -82,11 +91,15 @@ Cela te permettra ensuite de créer des chargements depuis l’interface de l’
 
 Dans Supabase :
 - Va dans **Authentication → URL Configuration → Redirect URLs**
-- Ajoute :
+- Ajoute les URL suivantes :
   ```
-  http://localhost:3000/auth/callback
+  http://localhost:3000
+  http://localhost:3000/*
+  https://ufv-fabio.vercel.app
+  https://ufv-fabio.vercel.app/*
+
   ```
-  (+ l’URL de production si tu déploies sur Vercel)
+Ces URL permettent à Supabase de rediriger correctement l’utilisateur après la connexion (notamment pour le Magic Link).
 
 ---
 
@@ -106,23 +119,23 @@ Tu pourras ensuite te connecter depuis `/login` (2 Méthodes de connexion propos
 Les routes suivantes sont protégées par le middleware Supabase :
 - `/chargements`
 - `/nouveau-chargement`
-- et leurs sous-routes (`/chargements/:id/edit`)
+- et leurs sous-routes (`/chargements/:[id]/edit`)
 
 Si l’utilisateur n’est pas connecté, il est automatiquement redirigé vers `/login`.
 
 ---
 
-## Déploiement (optionnel)
-Déploiement possible sur **Vercel** :
-- Renseigne les variables d’environnement :
+## Déploiement (Vercel)
+Déploiement possible via [Vercel](https://vercel.com) :
+
+Connecte ton Github "Import Git Repository" et sélectionne ton projet à importer.
+
+Avant le déploiement, renseigne les variables d’environnement (disponible dans ton .env.local si tu as suivi l'étape "3. Configuration des variables d’environnement") :
   - `NEXT_PUBLIC_SUPABASE_URL`
   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-- Ajoute dans Supabase :
-  ```
-  https://votre-projet.vercel.app/auth/callback
-  ```
-
 ---
+
+Mon propre déploiement Vercel est opérationnel => [clique ici](https://ufv-fabio.vercel.app/login)
 
 ## Autre
 Projet personnel, merci pour votre attention et vos remarques constructives.

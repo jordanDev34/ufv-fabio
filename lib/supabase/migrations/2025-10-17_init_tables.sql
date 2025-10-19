@@ -23,7 +23,7 @@ create table if not exists transports (
 );
 
 -- TABLE PRODUITS
-create table if not exists produits (
+create table produits (
   id uuid primary key default gen_random_uuid(),
   nom text not null,
   poids numeric,
@@ -32,7 +32,7 @@ create table if not exists produits (
 );
 
 -- TABLE CHARGEMENTS
-create table if not exists chargements (
+create table chargements (
   id uuid primary key default gen_random_uuid(),
   client_id uuid references clients(id) on delete cascade,
   transport_id uuid references transports(id) on delete cascade,
@@ -41,7 +41,7 @@ create table if not exists chargements (
 );
 
 -- TABLE CHARGEMENT_PRODUITS (liaison entre chargement et produits)
-create table if not exists chargement_produits (
+create table chargement_produits (
   id uuid primary key default gen_random_uuid(),
   chargement_id uuid references chargements(id) on delete cascade,
   produit_id uuid references produits(id) on delete cascade,
@@ -92,20 +92,20 @@ create policy "Mise à jour publique"
   with check (true);
 
 -- UPDATE sur CHARGEMENTS 
-create policy if not exists "Mise à jour publique"
+create policy "Mise à jour publique"
   on chargements
   for update
   using (true)
   with check (true);
 
 -- DELETE sur CHARGEMENT_PRODUITS (pour pouvoir supprimer des lignes)
-create policy if not exists "Suppression publique"
+create policy "Suppression publique"
   on chargement_produits
   for delete
   using (true);
 
 -- DELETE sur CHARGEMENTS (pour supprimer un chargement entier)
-create policy if not exists "Suppression publique"
+create policy "Suppression publique"
   on chargements
   for delete
   using (true);
